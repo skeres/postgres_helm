@@ -194,89 +194,90 @@ End of game :
 $ helm uninstall postgres-test  
 $ minikube stop  
 
--------------------------------------------------------------------
+
 
 ## Playing with Postgres in an AZURE Kubernetes Cluster 
-### TL;DR
 
-sources
-https://learn.microsoft.com/en-us/azure/aks/azure-disks-dynamic-pv
+resources :   
+https://learn.microsoft.com/en-us/azure/aks/azure-disks-dynamic-pv  
 
-The following example shows the pre-create storage classes available within an AKS cluster
-bash-5.1# kubectl get sc
+TODO : add here all pre-requisite on azure
 
-Note : Persistent volume claims are specified in GiB but Azure managed disks are billed by SKU for a specific size. 
-These SKUs range from 32GiB for S4 or P4 disks to 32TiB for S80 or P80 disks (in preview).
+### Create PVC
+The following example shows the pre-create storage classes available within an AKS cluster  
+bash-5.1# kubectl get sc  
+**Note** : Persistent volume claims are specified in GiB but Azure managed disks are billed by SKU for a specific size.   
+These SKUs range from 32GiB for S4 or P4 disks to 32TiB for S80 or P80 disks (in preview).  
 
-Create a persistent volume claim
+storage class available  
+**result :**   
+*NAME                    PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE*  
+*azurefile               file.csi.azure.com   Delete          Immediate              true                   4d3h*  
+*azurefile-csi           file.csi.azure.com   Delete          Immediate              true                   4d3h*  
+*azurefile-csi-premium   file.csi.azure.com   Delete          Immediate              true                   4d3h*  
+*azurefile-premium       file.csi.azure.com   Delete          Immediate              true                   4d3h*  
+*default (default)       disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h*  
+*managed                 disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h*  
+*managed-csi             disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h*  
+*managed-csi-premium     disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h*  
+*managed-premium         disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h*  
 
-see storage class available
-result :  
-NAME                    PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
-azurefile               file.csi.azure.com   Delete          Immediate              true                   4d3h
-azurefile-csi           file.csi.azure.com   Delete          Immediate              true                   4d3h
-azurefile-csi-premium   file.csi.azure.com   Delete          Immediate              true                   4d3h
-azurefile-premium       file.csi.azure.com   Delete          Immediate              true                   4d3h
-default (default)       disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h
-managed                 disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h
-managed-csi             disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h
-managed-csi-premium     disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h
-managed-premium         disk.csi.azure.com   Delete          WaitForFirstConsumer   true                   4d3h
+Create PVC  
+bash-5.1# kubectl apply -f azure-pvc.yaml   
+**result :**  
+persistentvolumeclaim/azure-managed-disk created  
 
-Create PVC
-bash-5.1# kubectl apply -f azure-pvc.yaml 
+Display existing PVC  
+bash-5.1# kubectl get pvc  
+**result :**  
+*NAME                 STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE*  
+*azure-managed-disk*  **Pending**                                  *managed-csi    5m23s*  
+
+Deploy postgres  
+bash-5.1# helm install postgres-test ./postgresql_azure  
+
+Get new status of volume
+bash-5.1# kubectl get pvc  
+*NAME                   STATUS      VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE*  
+*azure-managed-disk*   **Bound**    *pvc-f42a6b74-c5aa-4cab-a6a9-556a30493b7d   1Gi        RWO            managed-csi    17m*  
+
+check helm release :  
+bash-5.1# helm list  
+*NAME         	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART            	APP VERSION*  
+*postgres-test	default  	1       	2022-12-09 21:44:08.688809447 +0000 UTC	deployed	postgresql-12.1.2	15.1.0*     
+
+bash-5.1# kubectl get service   
+*NAME                          TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE*  
+*kubernetes                    ClusterIP   10.0.0.1      <none>        443/TCP    4d4h*  
+*postgres-test-postgresql      ClusterIP   10.0.242.75   <none>        5432/TCP   5m4s*  
+*postgres-test-postgresql-hl   ClusterIP   None          <none>        5432/TCP   5m4s*  
+
+bash-5.1# kubectl get pod -o wide  
+*NAME                                          READY   STATUS    RESTARTS   AGE   IP                NODE*    
+*postgres-test-postgresql-0                    1/1     Running   0          40m   **10.244.1.15**   aks-nodepool1-22173517-vmss000000*   
+
+connect into the pod and create database "mylittledb"  
+bash-5.1# kubectl exec -it postgres-test-postgresql-0 -- bash  
+
+$ psql --host 10.244.1.15 -U stephane -d postgres -p 5432   
+
+postgres=> create DATABASE mylittledb;       # create your own database  
+postgres=> \l                                # list all existing database  
 result : 
-persistentvolumeclaim/azure-managed-disk created
+*_                                  List of databases*  
+*_    Name    |  Owner   | Encoding |   Collate   |    Ctype    |   Access privileges*   
+*_------------+----------+----------+-------------+-------------+-----------------------*  
+*_ mylittledb | stephane | UTF8     | en_US.UTF-8 | en_US.UTF-8 | ( truncated for safety)*  
 
-Display existing PVC
-bash-5.1# kubectl get pvc
-NAME                 STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-azure-managed-disk   **Pending**                                     managed-csi    5m23s
+postgres=> \q                                 # quit psql  
 
-Deploy postgres
-bash-5.1# helm install postgres-test ./postgresql_azure
+deploy springbootAPI2 ( https://github.com/skeres/springAPI2 ) and go into pod, then try :   
 
-bash-5.1# kubectl get pvc
-NAME                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-azure-managed-disk   Bound    pvc-f42a6b74-c5aa-4cab-a6a9-556a30493b7d   1Gi        RWO            managed-csi    17m
-
-check
-bash-5.1# helm list
-NAME         	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART            	APP VERSION
-postgres-test	default  	1       	2022-12-09 21:44:08.688809447 +0000 UTC	deployed	postgresql-12.1.2	15.1.0     
-
-bash-5.1# kubectl get service 
-NAME                          TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
-kubernetes                    ClusterIP   10.0.0.1      <none>        443/TCP    4d4h
-postgres-test-postgresql      ClusterIP   10.0.242.75   <none>        5432/TCP   5m4s
-postgres-test-postgresql-hl   ClusterIP   None          <none>        5432/TCP   5m4s
-
-bash-5.1# kubectl get pod -o wide
-NAME                                          READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
-postgres-test-postgresql-0                    1/1     Running   0          40m   **10.244.1.15**   aks-nodepool1-22173517-vmss000000   
-
-connect into the pod and create database "mylittledb"
-bash-5.1# kubectl exec -it postgres-test-postgresql-0 -- bash
-
-$ psql --host 10.244.1.15 -U stephane -d postgres -p 5432 
-
-postgres=> create DATABASE mylittledb;       # create your own database
-postgres=> \l                                # list all existing database
-result : 
-                                  List of databases
-    Name    |  Owner   | Encoding |   Collate   |    Ctype    |   Access privileges   
-------------+----------+----------+-------------+-------------+-----------------------
- mylittledb | stephane | UTF8     | en_US.UTF-8 | en_US.UTF-8 | ( truncated for safety)
-
- postgres=> \q                                 # quit psql
-
-deploy springbootAPI2 and go into pod, then try : 
-
- curl http://springboot-k8s-svc:8484/api/listeEtudiants
+$ curl http://springboot-k8s-svc:8484/api/listeEtudiants  
  
-[{"id":1,"nom":"k","prenom":"steph","dateNaissance":"2022-12-09T22:56:07.179+00:00"},{"id":2,"nom":"m","prenom":"maria","dateNaissance":"2022-12-09T22:56:07.557+00:00"},{"id":3,"nom":"p","prenom":"phil","dateNaissance":"2022-12-09T22:56:07.574+00:00"},{"id":4,"nom":"j","prenom":"jessica","dateNaissance":"2022-12-09T22:56:07.628+00:00"},{"id":5,"nom":"z","prenom":"jessica","dateNaissance":"2022-12-09T22:56:07.678+00:00"},{"id":6,"nom":"k","prenom":"steph","dateNaissance":"2022-12-09T23:24:53.705+00:00"},{"id":7,"nom":"m","prenom":"maria","dateNaissance":"2022-12-09T23:24:54.323+00:00"},{"id":8,"nom":"p","prenom":"phil","dateNaissance":"2022-12-09T23:24:54.347+00:00"},{"id":9,"nom":"j","prenom":"jessica","dateNaissance":"2022-12-09T23:24:54.368+00:00"},{"id":10,"nom":"z","prenom":"jessica","dateNaissance":"2022-12-09T23:24:54.381+00:00"}]
+*[{"id":1,"nom":"k","prenom":"steph","dateNaissance":"2022-12-09T22:56:07.179+00:00"},{"id":2,"nom":"m","prenom":"maria","dateNaissance":"2022-12-09T22:56:07.557+00:00"},{"id":3,"nom":"p","prenom":"phil","dateNaissance":"2022-12-09T22:56:07.574+00:00"},{"id":4,"nom":"j","prenom":"jessica","dateNaissance":"2022-12-09T22:56:07.628+00:00"},{"id":5,"nom":"z","prenom":"jessica","dateNaissance":"2022-12-09T22:56:07.678+00:00"},{"id":6,"nom":"k","prenom":"steph","dateNaissance":"2022-12-09T23:24:53.705+00:00"},{"id":7,"nom":"m","prenom":"maria","dateNaissance":"2022-12-09T23:24:54.323+00:00"},{"id":8,"nom":"p","prenom":"phil","dateNaissance":"2022-12-09T23:24:54.347+00:00"},{"id":9,"nom":"j","prenom":"jessica","dateNaissance":"2022-12-09T23:24:54.368+00:00"},{"id":10,"nom":"z","prenom":"jessica","dateNaissance":"2022-12-09T23:24:54.381+00:00"}]*  
 
-it works !
+**it just works !**
 
 
 
