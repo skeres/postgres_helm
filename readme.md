@@ -1,46 +1,125 @@
-# resources
+# Postgres Charts for Minikube && AZURE 
+
+This project regroup 2 directories, generating Postgres Database with persistent volumes:  
+postgresql        : helm Chart to deploy a Postgres database in Minikube  
+postgressql_azure : helm Chart to deploy a Postgres database in AZURE a Kubernetes Cluster on Cloud  
+
+# Resources used
 https://artifacthub.io/packages/helm/bitnami/postgresql
 https://github.com/bitnami/charts/tree/main/bitnami/postgresql/
 
+# Versions used
+minikube : v1.28.0  
+kubernetes v1.25.2  
+kubectl : v1.25.3
+helm : v3.10.2  
 
-# add repo
-$ helm repo add bitnami https://charts.bitnami.com/bitnami
-$ helm repo update
 
-# tip for auto complete in bash
-$ echo 'source <(kubectl completion bash)' >>~/.bashrc              # at the next connexion to terminal, it will be active
-$ source <(kubectl completion bash)                                 # activate it right now, but not in other terminal
+## Deploy Postgres in Minikue
+### TL;DR
+Open a bash terminal, pull the repository, and cd in postgre_helm folder  
 
-# search in repo
-$ helm search repo postgresql
-result : 
-NAME                 	CHART VERSION	APP VERSION	DESCRIPTION                                       
-bitnami/postgresql   	12.1.2       	15.1.0     	PostgreSQL (Postgres) is an open source object-...
-bitnami/postgresql-ha	10.0.4       	15.1.0     	This PostgreSQL cluster solution includes the P...
+```
+minikube start --cpus=4 --memory=6000 --kubernetes-version=v1.25.2
+```
+```
+minikube ssh
+```
+in minikube docker@minikube:~$  
+
+```
+sudo mkdir /mnt/data-postgres-k8s && sudo chmod 777 data-postgres-k8s && exit
+```
+In your bash terminal, create PV first :  
+
+```
+kubectl apply -f postgresql/volumes/postgres-pv.yaml
+```
+In your bash terminal, create PVC :  
+```
+kubectl apply -f postgresql/volumes/postgres-pvc.yaml
+```
+Deploy Postgres  
+```
+helm install postgres-test ./postgresql
+```
+To connect to your database from outside the cluster execute the following commands:  
+
+in a separate terminal run  
+```
+kubectl port-forward --namespace default svc/postgres-test-postgresql 5432:5432
+```
+come back to your main terminal and run :   
+```
+psql --host 127.0.0.1 -U stephane -d postgres -p 5432
+```
+note : the password for user stephane is  : postgres  
+Your now in a psql prompt !   
+
+postgres=>  
+postgres=> \l                                # list all existing database  
+postgres=> create DATABASE mylittledb;       # create your own database  
+postgres-> \l  
+**result :**
+*____________________________ List of databases*  
+*Name        |  Owner   | Encoding |   Collate   |    Ctype    |   Access privileges*  
+*------------+----------+----------+-------------+-------------+-----------------------*  
+*mylittledb | stephane | UTF8     | en_US.UTF-8 | en_US.UTF-8 |*  
+
+to exit :   
+postgres=> exit ( or \q to quit )  
+ 
+To delete a database :   
+postgres=> drop DATABASE mylittledb;  
+postgres=> exit ( or \q to quit )  
+
+End of game : 
+$ helm uninstall postgres-test
+$ kubectl delete persistentvolume postgresql-pvc
+$ kubectl delete persistentvolume postgresql-pv
+$ minikube stop
+ 
+ 
+### Below some useful commands to work and debug if needed
+
+#### add bitnami repo
+$ helm repo add bitnami https://charts.bitnami.com/bitnami  
+$ helm repo update  
+
+## tip for auto complete in bash
+$ echo 'source <(kubectl completion bash)' >>~/.bashrc              # at the next connexion to terminal, it will be active  
+$ source <(kubectl completion bash)                                 # activate it right now, but not in other terminal  
+
+# search ofr helm packages in helm repository  
+$ helm search repo postgresql  
+**result :**
+*NAME                 	CHART VERSION	APP VERSION	DESCRIPTION*  
+*bitnami/postgresql   	12.1.2       	15.1.0     	PostgreSQL (Postgres) is an open source object-...*  
+*bitnami/postgresql-ha	10.0.4       	15.1.0     	This PostgreSQL cluster solution includes the P...*  
 
 # pull the chart : retrieve a package from a package repository, and download it locally.
-$ helm pull bitnami/postgresql --version 12.1.2
+$ helm pull bitnami/postgresql --version 12.1.2   
 
 
-helm pull [chart URL | repo/chartname] [...] [flags]
-Options
-      --ca-file string             verify certificates of HTTPS-enabled servers using this CA bundle
-      --cert-file string           identify HTTPS client using this SSL certificate file
-  -d, --destination string         location to write the chart. If this and untardir are specified, untardir is appended to this (default ".")
-      --devel                      use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored.
-  -h, --help                       help for pull
-      --insecure-skip-tls-verify   skip tls certificate checks for the chart download
-      --key-file string            identify HTTPS client using this SSL key file
-      --keyring string             location of public keys used for verification (default "~/.gnupg/pubring.gpg")
-      --pass-credentials           pass credentials to all domains
-      --password string            chart repository password where to locate the requested chart
-      --prov                       fetch the provenance file, but don't perform verification
-      --repo string                chart repository url where to locate the requested chart
-      --untar                      if set to true, will untar the chart after downloading it
-      --untardir string            if untar is specified, this flag specifies the name of the directory into which the chart is expanded (default ".")
-      --username string            chart repository username where to locate the requested chart
-      --verify                     verify the package before using it
-      --version string             specify a version constraint for the chart version to use. This constraint can be a specific tag (e.g. 1.1.1) or it may reference a valid range (e.g. ^2.0.0). If this is not specified, the latest version is used
+help : helm pull [chart URL | repo/chartname] [...] [flags]  
+*Options*
+--ca-file string             verify certificates of HTTPS-enabled servers using this CA bundle*  
+*--cert-file string           identify HTTPS client using this SSL certificate file*  
+*-d, --destination string         location to write the chart. If this and untardir are specified, untardir is appended to this (default ".")*  
+*--devel                      use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored*  
+*-h, --help                       help for pull*  
+*--insecure-skip-tls-verify   skip tls certificate checks for the chart download*  
+*--key-file string            identify HTTPS client using this SSL key file*  
+*--keyring string             location of public keys used for verification (default "~/.gnupg/pubring.gpg")*  
+*--pass-credentials           pass credentials to all domains*  
+*--password string            chart repository password where to locate the requested chart*  
+*--prov                       fetch the provenance file, but don't perform verification*  
+*--repo string                chart repository url where to locate the requested chart*  
+*--untar                      if set to true, will untar the chart after downloading it*  
+*--untardir string            if untar is specified, this flag specifies the name of the directory into which the chart is expanded (default ".")*  
+*--username string            chart repository username where to locate the requested chart*  
+*--verify                     verify the package before using it*  
+*--version string             specify a version constraint for the chart version to use. This constraint can be a specific tag (e.g. 1.1.1) or it may reference a valid range (e.g. ^2.0.0). If this is not specified, the latest version is used*  
 
 # untar compress file
 $ tar zxvf postgresql-12.1.2.tgz -C .  ( "." is the current directory. You van set your own path )
@@ -64,7 +143,7 @@ $ minikube start --cpus=4 --memory=6000 --kubernetes-version=v1.25.2
 
 $ minikube ssh
 docker@minikube:~$ sudo mkdir /mnt/data-postgres-k8s
-socker@minikube:~$ sudo chmod 777 data-postgres-k8s
+docker@minikube:~$ sudo chmod 777 data-postgres-k8s
 docker@minikube:~$ exit
 $ kubectl apply -f postgresql/volumes/postgres-pv.yaml  : create PV FIRST
 $ kubectl apply -f postgresql/volumes/postgres-pvc.yaml : create PVC
@@ -126,7 +205,7 @@ To connect to your database from outside the cluster execute the following comma
 ----------------------------------------------------------------------------
 
 Next steps : to connect to your database from outside the cluster execute the following commands:
-in a separate terminal and run : 
+in a separate terminal run : 
 $ kubectl port-forward --namespace default svc/postgres-test-postgresql 5432:5432
 come back to your main terminal and run : 
 $ psql --host 127.0.0.1 -U stephane -d postgres -p 5432  
