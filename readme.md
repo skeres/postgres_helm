@@ -196,16 +196,22 @@ $ minikube stop
 
 
 
+
+
+
+
+
 ## Playing with Postgres in an AZURE Kubernetes Cluster 
 
 resources :   
 https://learn.microsoft.com/en-us/azure/aks/azure-disks-dynamic-pv  
 
-TODO : add here all pre-requisite on azure
+TODO : add here all pre-requisite on Azure environement
 
-### Create PVC
+### Create PVC, deploy and tests
 The following example shows the pre-create storage classes available within an AKS cluster  
 bash-5.1# kubectl get sc  
+   
 **Note** : Persistent volume claims are specified in GiB but Azure managed disks are billed by SKU for a specific size.   
 These SKUs range from 32GiB for S4 or P4 disks to 32TiB for S80 or P80 disks (in preview).  
 
